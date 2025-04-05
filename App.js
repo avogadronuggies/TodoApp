@@ -9,7 +9,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  StatusBar as RNStatusBar,
   useColorScheme,
   Animated,
   Image,
@@ -149,88 +148,133 @@ export default function App() {
 
   const scheduleTaskReminder = async (taskId, taskText, deadlineDate) => {
     try {
+      // 1. Cancel any existing notifications for this task
       await cancelTaskReminders(taskId);
 
       const now = new Date();
       const deadline = new Date(deadlineDate);
-      const timeUntilDeadline = deadline.getTime() - now.getTime();
+      const timeUntilDeadline = deadline - now;
 
-      if (timeUntilDeadline <= 0) return;
-
-      const reminderIntervals = [
-        12 * 60 * 60 * 1000, // 12 hours
-        8 * 60 * 60 * 1000, // 8 hours
-        4 * 60 * 60 * 1000, // 4 hours
-        2 * 60 * 60 * 1000, // 2 hours
-        1 * 60 * 60 * 1000, // 1 hour
-        30 * 60 * 1000, // 30 minutes
-        15 * 60 * 1000, // 15 minutes
-      ];
-
-      for (const interval of reminderIntervals) {
-        const reminderTime = deadline.getTime() - interval;
-
-        if (reminderTime > now.getTime()) {
-          const reminderDate = new Date(reminderTime);
-          let timeLeftMessage;
-
-          if (interval >= 60 * 60 * 1000) {
-            const hours = interval / (60 * 60 * 1000);
-            timeLeftMessage = `${hours} hour${hours > 1 ? "s" : ""}`;
-          } else {
-            const minutes = interval / (60 * 1000);
-            timeLeftMessage = `${minutes} minute${minutes > 1 ? "s" : ""}`;
-          }
-
+      // 2. If overdue, handle separately
+      if (timeUntilDeadline <= 0) {
+        if (timeUntilDeadline > -1000 * 60 * 60) {
+          // Within 1 hour overdue
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: `Task Due in ${timeLeftMessage}`,
-              body: `Your task "${taskText}" needs to be completed soon!`,
+              title: "⚠️ Task Overdue!",
+              body: `"${taskText}" is overdue! Complete it now!`,
               data: { taskId },
               sound: true,
             },
-            trigger: {
-              date: reminderDate,
-            },
-            identifier: `${taskId}-${interval}`,
+            trigger: null,
           });
+        }
+        return;
+      }
+
+      // 3. Configure Android-specific notification channel
+      if (Platform.OS === "android") {
+        await Notifications.setNotificationChannelAsync("task-reminders", {
+          name: "Task Reminders",
+          importance: Notifications.AndroidImportance.HIGH,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: "#FF231F7C",
+          sound: "default",
+        });
+      }
+
+      // 4. Schedule only the most appropriate notification
+      const intervals = [
+        { time: 12 * 60 * 60 * 1000, message: "12 hours" }, // 12 hours
+        { time: 8 * 60 * 60 * 1000, message: "8 hours" }, // 8 hours
+        { time: 4 * 60 * 60 * 1000, message: "4 hours" }, // 4 hours
+        { time: 2 * 60 * 60 * 1000, message: "2 hours" }, // 2 hours
+        { time: 1 * 60 * 60 * 1000, message: "1 hour" }, // 1 hour
+        { time: 30 * 60 * 1000, message: "30 minutes" }, // 30 mins
+        { time: 15 * 60 * 1000, message: "15 minutes" }, // 15 mins
+      ];
+
+      // Find the most appropriate interval for notification
+      let selectedInterval = null;
+
+      for (const interval of intervals) {
+        if (timeUntilDeadline > interval.time) {
+          // Schedule at exactly the right time
+          const triggerTime = deadline.getTime() - interval.time;
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: `⏰ Due in ${interval.message}`,
+              body: `"${taskText}" needs completion`,
+              data: { taskId },
+              sound: true,
+              ...(Platform.OS === "android" && { channelId: "task-reminders" }),
+            },
+            trigger: { date: new Date(triggerTime) },
+          });
+          selectedInterval = interval;
+          break;
         }
       }
 
+      // If timeUntilDeadline is less than the smallest interval (15 min)
+      // but more than 1 minute, schedule a "due soon" notification
+      if (!selectedInterval && timeUntilDeadline > 60 * 1000) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `⏰ Due soon`,
+            body: `"${taskText}" needs completion`,
+            data: { taskId },
+            sound: true,
+            ...(Platform.OS === "android" && { channelId: "task-reminders" }),
+          },
+          trigger: { date: new Date(now.getTime() + 1000) }, // Show almost immediately
+        });
+      }
+
+      // 5. Always schedule the deadline notification
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: "⚠️ Task Due Now!",
-          body: `Your task "${taskText}" is due now!`,
+          title: "‼️ Due Now!",
+          body: `"${taskText}" is due now!`,
           data: { taskId },
           sound: true,
+          ...(Platform.OS === "android" && { channelId: "task-reminders" }),
         },
-        trigger: {
-          date: deadline,
-        },
-        identifier: `${taskId}-deadline`,
+        trigger: { date: deadline },
       });
-
-      console.log("Scheduled notifications for task:", taskId);
     } catch (error) {
-      console.log("Error scheduling notification", error);
+      console.error("Notification scheduling failed:", error);
     }
+  };
+
+  const formatTimeLeft = (ms) => {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (hours >= 1) return `${hours}h`;
+    if (mins >= 1) return `${mins}m`;
+    return "soon";
   };
 
   const cancelTaskReminders = async (taskId) => {
     try {
-      const scheduledNotifications =
+      // Using the newer Notifications API method
+      const notifications =
         await Notifications.getAllScheduledNotificationsAsync();
-      const taskNotifications = scheduledNotifications.filter(
+
+      const notificationsToCancel = notifications.filter(
         (notification) => notification.content.data?.taskId === taskId
       );
 
-      for (const notification of taskNotifications) {
-        await Notifications.cancelScheduledNotificationAsync(
-          notification.identifier
-        );
-      }
+      await Promise.all(
+        notificationsToCancel.map((notification) =>
+          Notifications.cancelScheduledNotificationAsync(
+            notification.identifier
+          )
+        )
+      );
     } catch (error) {
-      console.log("Error canceling notifications", error);
+      console.error("Error cancelling notifications:", error);
     }
   };
 
@@ -434,8 +478,12 @@ export default function App() {
     return "Due soon";
   };
 
-  const renderItem = ({ item, index }) => {
+  const renderItem = ({ item }) => {
     const daysRemaining = getDaysRemaining(item.deadline);
+    const isImminent =
+      daysRemaining?.includes("hour") ||
+      daysRemaining?.includes("minute") ||
+      daysRemaining === "Due soon";
 
     return (
       <Animated.View
@@ -482,7 +530,7 @@ export default function App() {
                 <Text style={[styles.dateText, { color: theme.textSecondary }]}>
                   {formatDate(item.createdAt)}
                 </Text>
-                // In your renderItem function, update the deadline display:
+
                 {item.deadline && (
                   <View
                     style={[
@@ -491,9 +539,8 @@ export default function App() {
                         backgroundColor:
                           daysRemaining === "Overdue"
                             ? theme.danger
-                            : daysRemaining.includes("minute") ||
-                              daysRemaining.includes("hour")
-                            ? `${theme.deadline}40` // More intense color for imminent deadlines
+                            : isImminent
+                            ? `${theme.deadline}40`
                             : `${theme.deadline}20`,
                       },
                     ]}

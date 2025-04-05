@@ -16,9 +16,14 @@
       "supportsTablet": true
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/logo.png",
-        "backgroundColor": "#ffffff"
+      "permissions": [
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
+      ],
+      "notification": {
+        "icon": "./assets/logo.png",
+        "color": "#4F46E5",
+        "sound": true
       },
       "package": "com.avogadronuggies.TodoApp"
     },
