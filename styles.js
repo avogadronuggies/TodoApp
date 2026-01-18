@@ -95,6 +95,15 @@ export default StyleSheet.create({
   listContent: {
     paddingBottom: 20,
   },
+  sectionHeader: {
+    paddingVertical: 10,
+    paddingHorizontal: 5,
+    marginBottom: 5,
+  },
+  sectionHeaderText: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
   taskContainer: {
     borderRadius: 15,
     padding: 15,
@@ -177,6 +186,38 @@ export default StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
   },
+  notesInput: {
+    height: 60,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingTop: 10,
+    marginBottom: 10,
+    fontSize: 14,
+  },
+  notesContainer: {
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  notesHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  notesLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  notesToggle: {
+    fontSize: 12,
+  },
+  notesText: {
+    fontSize: 14,
+    marginTop: 8,
+    lineHeight: 20,
+  },
   emptyContainer: {
     flex: 1,
     justifyContent: "center",
@@ -200,5 +241,304 @@ export default StyleSheet.create({
   emptySubtext: {
     fontSize: 16,
     textAlign: "center",
+  },
+  // NavBar styles
+  navBar: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginVertical: 10,
+    borderRadius: 12,
+    padding: 4,
+    borderWidth: 1,
+  },
+  navTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: "center",
+    borderRadius: 10,
+  },
+  navTabActive: {
+    elevation: 2,
+  },
+  navTabText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  navTabTextActive: {
+    fontWeight: "bold",
+  },
+  // Daily Routine styles
+  routineWrapper: {
+    flex: 1,
+  },
+  routineStats: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 15,
+    borderRadius: 12,
+  },
+  routineStatsText: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  routineInputContainer: {
+    marginHorizontal: 20,
+    marginBottom: 15,
+    padding: 15,
+    borderRadius: 12,
+  },
+  routineInput: {
+    height: 45,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 10,
+    fontSize: 16,
+  },
+  routineTimeInput: {
+    height: 45,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 10,
+    fontSize: 16,
+  },
+  routineAddBtn: {
+    height: 45,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  routineAddBtnText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  routineList: {
+    flex: 1,
+    marginHorizontal: 20,
+  },
+  routineListContent: {
+    paddingBottom: 20,
+  },
+  routineContainer: {
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  routineContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  routineCheckbox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    marginRight: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  routineCheckmark: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  routineInfo: {
+    flex: 1,
+  },
+  routineName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  routineMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  routineTime: {
+    fontSize: 13,
+  },
+  streakBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  streakText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  routineActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 10,
+    gap: 8,
+  },
+  routineActionBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  routineActionText: {
+    color: "white",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  routineEmpty: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 40,
+  },
+  routineEmptyIcon: {
+    fontSize: 60,
+    marginBottom: 15,
+  },
+  routineEmptyText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  routineEmptySubtext: {
+    fontSize: 14,
+    textAlign: "center",
+  },
+  // Lottery machine time picker styles
+  routineTimeButton: {
+    height: 45,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    marginBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  routineTimeButtonText: {
+    fontSize: 16,
+  },
+  clearTimeBtn: {
+    padding: 5,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickerContainer: {
+    width: "85%",
+    maxWidth: 360,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  pickerTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  pickerWheels: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  pickerWheelWrapper: {
+    alignItems: "center",
+  },
+  pickerLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 5,
+    textTransform: "uppercase",
+  },
+  pickerColumn: {
+    height: 150,
+    width: 70,
+    borderRadius: 12,
+    overflow: "hidden",
+    position: "relative",
+  },
+  pickerHighlight: {
+    position: "absolute",
+    top: 50,
+    left: 4,
+    right: 4,
+    height: 50,
+    borderRadius: 8,
+    borderWidth: 2,
+    zIndex: 1,
+    pointerEvents: "none",
+  },
+  pickerItem: {
+    height: 50,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickerItemText: {
+    fontSize: 24,
+    fontWeight: "500",
+  },
+  pickerItemSelected: {
+    fontSize: 28,
+    fontWeight: "bold",
+  },
+  pickerSeparator: {
+    fontSize: 32,
+    fontWeight: "bold",
+    marginHorizontal: 5,
+    marginTop: 25,
+  },
+  pickerPreview: {
+    padding: 15,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  pickerPreviewText: {
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  pickerButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  pickerBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickerCancelBtn: {
+    borderWidth: 1,
+  },
+  pickerConfirmBtn: {},
+  pickerBtnText: {
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

@@ -1,79 +1,33 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
+  SectionList,
   Text,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
   SafeAreaView,
-  KeyboardAvoidingView,
   Platform,
   Alert,
   useColorScheme,
   Animated,
-  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { StatusBar } from "expo-status-bar";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as Notifications from "expo-notifications";
 import styles from "./styles";
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
-
-// Define theme colors
-const themes = {
-  light: {
-    primary: "green",
-    primaryLight: "#a78bfa",
-    background: "#f8fafc",
-    card: "#ffffff",
-    text: "#1e293b",
-    textSecondary: "#64748b",
-    border: "#e2e8f0",
-    inputBg: "#f1f5f9",
-    statusBar: "dark",
-    shadow: "#000",
-    success: "#10b981",
-    warning: "#f59e0b",
-    danger: "#ef4444",
-    deadline: "#f43f5e",
-  },
-  dark: {
-    primary: "#8b5cf6",
-    primaryLight: "#a78bfa",
-    background: "#0f172a",
-    card: "#1e293b",
-    text: "#f8fafc",
-    textSecondary: "#94a3b8",
-    border: "#334155",
-    inputBg: "#334155",
-    statusBar: "light",
-    shadow: "#000",
-    success: "#059669",
-    warning: "#d97706",
-    danger: "#dc2626",
-    deadline: "#be123c",
-  },
-};
-
-// Logo component
-const AppLogo = () => {
-  return (
-    <Image
-      source={require("./assets/logo.png")}
-      style={styles.logoImage}
-      resizeMode="contain"
-    />
-  );
-};
+// Import components
+import {
+  Header,
+  TaskInput,
+  TaskItem,
+  EmptyState,
+  NavBar,
+  DailyRoutine,
+  themes,
+  registerForPushNotifications,
+  scheduleTaskReminder,
+  cancelTaskReminders,
+  setupNotificationListeners,
+} from "./components";
 
 export default function App() {
   const systemColorScheme = useColorScheme();
@@ -83,20 +37,29 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [fadeAnim] = useState(new Animated.Value(1));
   const [deadline, setDeadline] = useState(null);
+  const [notes, setNotes] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [pickerMode, setPickerMode] = useState("date");
+  const [editingTimerId, setEditingTimerId] = useState(null);
+  const [activeTab, setActiveTab] = useState("tasks");
+  const [routines, setRoutines] = useState([]);
 
   const theme = isDarkMode ? themes.dark : themes.light;
 
   useEffect(() => {
     loadTasks();
+    loadRoutines();
     loadThemePreference();
-    registerForPushNotifications();
+    initializeNotifications();
   }, []);
 
   useEffect(() => {
     saveTasks();
   }, [tasks]);
+
+  useEffect(() => {
+    saveRoutines();
+  }, [routines]);
 
   useEffect(() => {
     saveThemePreference();
@@ -114,167 +77,17 @@ export default function App() {
     ]).start();
   }, [isDarkMode]);
 
-  const registerForPushNotifications = async () => {
-    try {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("default", {
-          name: "default",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-        });
-      }
-
-      const { status: existingStatus } =
-        await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-
-      if (existingStatus !== "granted") {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-
-      if (finalStatus !== "granted") {
-        Alert.alert(
-          "Notification Permission",
-          "Please enable notifications to receive task reminders"
-        );
-        return;
-      }
-    } catch (error) {
-      console.log("Error requesting notification permissions", error);
-    }
-  };
-
-  const scheduleTaskReminder = async (taskId, taskText, deadlineDate) => {
-    try {
-      // 1. Cancel any existing notifications for this task
-      await cancelTaskReminders(taskId);
-
-      const now = new Date();
-      const deadline = new Date(deadlineDate);
-      const timeUntilDeadline = deadline - now;
-
-      // 2. If overdue, handle separately
-      if (timeUntilDeadline <= 0) {
-        if (timeUntilDeadline > -1000 * 60 * 60) {
-          // Within 1 hour overdue
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "⚠️ Task Overdue!",
-              body: `"${taskText}" is overdue! Complete it now!`,
-              data: { taskId },
-              sound: true,
-            },
-            trigger: null,
-          });
-        }
-        return;
-      }
-
-      // 3. Configure Android-specific notification channel
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("task-reminders", {
-          name: "Task Reminders",
-          importance: Notifications.AndroidImportance.HIGH,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: "#FF231F7C",
-          sound: "default",
-        });
-      }
-
-      // 4. Schedule only the most appropriate notification
-      const intervals = [
-        { time: 12 * 60 * 60 * 1000, message: "12 hours" }, // 12 hours
-        { time: 8 * 60 * 60 * 1000, message: "8 hours" }, // 8 hours
-        { time: 4 * 60 * 60 * 1000, message: "4 hours" }, // 4 hours
-        { time: 2 * 60 * 60 * 1000, message: "2 hours" }, // 2 hours
-        { time: 1 * 60 * 60 * 1000, message: "1 hour" }, // 1 hour
-        { time: 30 * 60 * 1000, message: "30 minutes" }, // 30 mins
-        { time: 15 * 60 * 1000, message: "15 minutes" }, // 15 mins
-      ];
-
-      // Find the most appropriate interval for notification
-      let selectedInterval = null;
-
-      for (const interval of intervals) {
-        if (timeUntilDeadline > interval.time) {
-          // Schedule at exactly the right time
-          const triggerTime = deadline.getTime() - interval.time;
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: `⏰ Due in ${interval.message}`,
-              body: `"${taskText}" needs completion`,
-              data: { taskId },
-              sound: true,
-              ...(Platform.OS === "android" && { channelId: "task-reminders" }),
-            },
-            trigger: { date: new Date(triggerTime) },
-          });
-          selectedInterval = interval;
-          break;
-        }
-      }
-
-      // If timeUntilDeadline is less than the smallest interval (15 min)
-      // but more than 1 minute, schedule a "due soon" notification
-      if (!selectedInterval && timeUntilDeadline > 60 * 1000) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: `⏰ Due soon`,
-            body: `"${taskText}" needs completion`,
-            data: { taskId },
-            sound: true,
-            ...(Platform.OS === "android" && { channelId: "task-reminders" }),
-          },
-          trigger: { date: new Date(now.getTime() + 1000) }, // Show almost immediately
-        });
-      }
-
-      // 5. Always schedule the deadline notification
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "‼️ Due Now!",
-          body: `"${taskText}" is due now!`,
-          data: { taskId },
-          sound: true,
-          ...(Platform.OS === "android" && { channelId: "task-reminders" }),
-        },
-        trigger: { date: deadline },
+  const initializeNotifications = async () => {
+    const permissionGranted = await registerForPushNotifications();
+    if (permissionGranted) {
+      // Set up notification listeners
+      const cleanup = setupNotificationListeners((notification) => {
+        // Handle received notification while app is open
+        console.log("Notification received in app:", notification);
       });
-    } catch (error) {
-      console.error("Notification scheduling failed:", error);
-    }
-  };
 
-  const formatTimeLeft = (ms) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours >= 1) return `${hours}h`;
-    if (mins >= 1) return `${mins}m`;
-    return "soon";
-  };
-
-  const cancelTaskReminders = async (taskId) => {
-    try {
-      // Using the newer Notifications API method
-      const notifications =
-        await Notifications.getAllScheduledNotificationsAsync();
-
-      const notificationsToCancel = notifications.filter(
-        (notification) => notification.content.data?.taskId === taskId
-      );
-
-      await Promise.all(
-        notificationsToCancel.map((notification) =>
-          Notifications.cancelScheduledNotificationAsync(
-            notification.identifier
-          )
-        )
-      );
-    } catch (error) {
-      console.error("Error cancelling notifications:", error);
+      // Return cleanup function
+      return cleanup;
     }
   };
 
@@ -295,7 +108,7 @@ export default function App() {
     try {
       await AsyncStorage.setItem(
         "@theme_preference",
-        JSON.stringify(isDarkMode)
+        JSON.stringify(isDarkMode),
       );
     } catch (error) {
       console.log("Error saving theme preference", error);
@@ -322,6 +135,25 @@ export default function App() {
       await AsyncStorage.setItem("@tasks", JSON.stringify(tasks));
     } catch (error) {
       Alert.alert("Error", "Failed to save tasks");
+    }
+  };
+
+  const loadRoutines = async () => {
+    try {
+      const storedRoutines = await AsyncStorage.getItem("@routines");
+      if (storedRoutines !== null) {
+        setRoutines(JSON.parse(storedRoutines));
+      }
+    } catch (error) {
+      console.log("Error loading routines", error);
+    }
+  };
+
+  const saveRoutines = async () => {
+    try {
+      await AsyncStorage.setItem("@routines", JSON.stringify(routines));
+    } catch (error) {
+      console.log("Error saving routines", error);
     }
   };
 
@@ -370,9 +202,10 @@ export default function App() {
           ? {
               ...item,
               text: task,
+              notes: notes,
               deadline: deadline ? deadline.toISOString() : item.deadline,
             }
-          : item
+          : item,
       );
       setTasks(updatedTasks);
 
@@ -381,7 +214,7 @@ export default function App() {
         scheduleTaskReminder(
           updatedTask.id,
           updatedTask.text,
-          updatedTask.deadline
+          updatedTask.deadline,
         );
       }
 
@@ -390,6 +223,7 @@ export default function App() {
       const newTask = {
         id: Date.now().toString(),
         text: task,
+        notes: notes,
         completed: false,
         createdAt: new Date().toISOString(),
         deadline: deadline ? deadline.toISOString() : null,
@@ -403,6 +237,7 @@ export default function App() {
     }
 
     setTask("");
+    setNotes("");
     setDeadline(null);
   };
 
@@ -425,23 +260,101 @@ export default function App() {
 
   const toggleComplete = (id) => {
     const updatedTasks = tasks.map((item) =>
-      item.id === id ? { ...item, completed: !item.completed } : item
+      item.id === id ? { ...item, completed: !item.completed } : item,
     );
 
     setTasks(updatedTasks);
 
     const completedTask = updatedTasks.find((t) => t.id === id);
-    if (completedTask.completed) {
-      cancelTaskReminders(id);
-    } else if (completedTask.deadline) {
-      scheduleTaskReminder(id, completedTask.text, completedTask.deadline);
+    if (completedTask) {
+      if (completedTask.completed) {
+        cancelTaskReminders(id);
+      } else if (completedTask.deadline) {
+        scheduleTaskReminder(id, completedTask.text, completedTask.deadline);
+      }
     }
   };
 
-  const startEditing = (id, text, taskDeadline) => {
+  const startEditing = (id, text, taskDeadline, taskNotes) => {
     setEditingId(id);
     setTask(text);
+    setNotes(taskNotes || "");
     setDeadline(taskDeadline ? new Date(taskDeadline) : null);
+  };
+
+  const startEditingTimer = (id, taskDeadline) => {
+    setEditingTimerId(id);
+    setDeadline(taskDeadline ? new Date(taskDeadline) : null);
+    setPickerMode("date");
+    setShowDatePicker(true);
+  };
+
+  const clearTaskDeadline = async (id) => {
+    await cancelTaskReminders(id);
+    const updatedTasks = tasks.map((item) =>
+      item.id === id ? { ...item, deadline: null } : item,
+    );
+    setTasks(updatedTasks);
+  };
+
+  const onTimerDateChange = (event, selectedDate) => {
+    if (!editingTimerId) {
+      onDateChange(event, selectedDate);
+      return;
+    }
+
+    const currentDate = selectedDate || deadline || new Date();
+
+    if (Platform.OS === "android") {
+      setShowDatePicker(false);
+
+      if (event.type === "dismissed") {
+        setEditingTimerId(null);
+        setDeadline(null);
+        return;
+      }
+
+      if (selectedDate && pickerMode === "date") {
+        setDeadline(currentDate);
+        setPickerMode("time");
+        setShowDatePicker(true);
+        return;
+      }
+
+      if (selectedDate) {
+        let finalDate = currentDate;
+        if (deadline) {
+          const combinedDate = new Date(deadline);
+          combinedDate.setHours(currentDate.getHours());
+          combinedDate.setMinutes(currentDate.getMinutes());
+          finalDate = combinedDate;
+        }
+
+        // Update the task with new deadline
+        const updatedTasks = tasks.map((item) =>
+          item.id === editingTimerId
+            ? { ...item, deadline: finalDate.toISOString() }
+            : item,
+        );
+        setTasks(updatedTasks);
+
+        // Schedule new reminder
+        const updatedTask = updatedTasks.find((t) => t.id === editingTimerId);
+        if (updatedTask) {
+          scheduleTaskReminder(
+            updatedTask.id,
+            updatedTask.text,
+            updatedTask.deadline,
+          );
+        }
+
+        setEditingTimerId(null);
+        setDeadline(null);
+      }
+    } else {
+      // iOS handling
+      setDeadline(currentDate);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -466,7 +379,7 @@ export default function App() {
 
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     const diffHours = Math.floor(
-      (diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)
+      (diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
     );
     const diffMinutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
 
@@ -478,110 +391,85 @@ export default function App() {
     return "Due soon";
   };
 
-  const renderItem = ({ item }) => {
-    const daysRemaining = getDaysRemaining(item.deadline);
-    const isImminent =
-      daysRemaining?.includes("hour") ||
-      daysRemaining?.includes("minute") ||
-      daysRemaining === "Due soon";
+  // Group tasks by deadline into sections
+  const groupTasksByDeadline = (taskList) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfterTomorrow = new Date(today);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+    const endOfWeek = new Date(today);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-    return (
-      <Animated.View
-        style={[
-          styles.taskContainer,
-          {
-            backgroundColor: theme.card,
-            opacity: fadeAnim,
-            transform: [{ scale: fadeAnim }],
-            shadowColor: theme.shadow,
-          },
-        ]}
-      >
-        <View style={styles.taskHeader}>
-          <TouchableOpacity
-            style={styles.taskTextContainer}
-            onPress={() => toggleComplete(item.id)}
-          >
-            <View
-              style={[
-                styles.checkbox,
-                { borderColor: item.completed ? theme.success : theme.primary },
-                item.completed && { backgroundColor: theme.success },
-              ]}
-            >
-              {item.completed && (
-                <View style={[styles.checkmark, { borderColor: "white" }]} />
-              )}
-            </View>
-            <View style={styles.taskContent}>
-              <Text
-                style={[
-                  styles.taskText,
-                  { color: theme.text },
-                  item.completed && styles.taskTextCompleted,
-                  item.completed && { color: theme.textSecondary },
-                ]}
-                numberOfLines={2}
-              >
-                {item.text}
-              </Text>
+    const groups = {
+      overdue: { title: "⚠️ Overdue", data: [], order: 0 },
+      today: { title: "📌 Today", data: [], order: 1 },
+      tomorrow: { title: "📅 Tomorrow", data: [], order: 2 },
+      thisWeek: { title: "🗓️ This Week", data: [], order: 3 },
+      later: { title: "📆 Later", data: [], order: 4 },
+      noDeadline: { title: "📝 No Deadline", data: [], order: 5 },
+    };
 
-              <View style={styles.taskMetaContainer}>
-                <Text style={[styles.dateText, { color: theme.textSecondary }]}>
-                  {formatDate(item.createdAt)}
-                </Text>
+    taskList.forEach((task) => {
+      if (!task.deadline) {
+        groups.noDeadline.data.push(task);
+        return;
+      }
 
-                {item.deadline && (
-                  <View
-                    style={[
-                      styles.deadlineContainer,
-                      {
-                        backgroundColor:
-                          daysRemaining === "Overdue"
-                            ? theme.danger
-                            : isImminent
-                            ? `${theme.deadline}40`
-                            : `${theme.deadline}20`,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.deadlineText,
-                        {
-                          color:
-                            daysRemaining === "Overdue"
-                              ? "#ffffff"
-                              : theme.deadline,
-                        },
-                      ]}
-                    >
-                      {daysRemaining} • Due: {formatDate(item.deadline)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        </View>
+      const deadline = new Date(task.deadline);
+      const deadlineDate = new Date(
+        deadline.getFullYear(),
+        deadline.getMonth(),
+        deadline.getDate(),
+      );
 
-        <View style={styles.taskActions}>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.warning }]}
-            onPress={() => startEditing(item.id, item.text, item.deadline)}
-          >
-            <Text style={styles.actionButtonText}>Edit</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, { backgroundColor: theme.danger }]}
-            onPress={() => deleteTask(item.id)}
-          >
-            <Text style={styles.actionButtonText}>Delete</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-    );
+      if (deadline < now) {
+        groups.overdue.data.push(task);
+      } else if (deadlineDate.getTime() === today.getTime()) {
+        groups.today.data.push(task);
+      } else if (deadlineDate.getTime() === tomorrow.getTime()) {
+        groups.tomorrow.data.push(task);
+      } else if (deadline < endOfWeek) {
+        groups.thisWeek.data.push(task);
+      } else {
+        groups.later.data.push(task);
+      }
+    });
+
+    // Sort tasks within each group by deadline (earliest first)
+    Object.values(groups).forEach((group) => {
+      group.data.sort((a, b) => {
+        if (!a.deadline && !b.deadline) return 0;
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline) - new Date(b.deadline);
+      });
+    });
+
+    // Return only groups that have tasks, sorted by order
+    return Object.values(groups)
+      .filter((group) => group.data.length > 0)
+      .sort((a, b) => a.order - b.order);
   };
+
+  // Memoize the grouped sections to avoid recalculating on every render
+  const sections = useMemo(() => groupTasksByDeadline(tasks), [tasks]);
+
+  const renderItem = ({ item }) => (
+    <TaskItem
+      item={item}
+      theme={theme}
+      fadeAnim={fadeAnim}
+      onToggleComplete={toggleComplete}
+      onEdit={startEditing}
+      onEditTimer={startEditingTimer}
+      onClearDeadline={clearTaskDeadline}
+      onDelete={deleteTask}
+      formatDate={formatDate}
+      getDaysRemaining={getDaysRemaining}
+    />
+  );
 
   return (
     <Animated.View
@@ -593,107 +481,68 @@ export default function App() {
     >
       <SafeAreaView style={{ flex: 1 }}>
         <StatusBar style={theme.statusBar} />
-        <View style={[styles.header, { backgroundColor: theme.primary }]}>
-          <View style={styles.headerContent}>
-            <View style={styles.logoContainer}>
-              <AppLogo />
-              <Text style={styles.title}>My Tasks</Text>
-            </View>
-            <Text style={styles.subtitle}>
-              {tasks.length} {tasks.length === 1 ? "task" : "tasks"} •{" "}
-              {tasks.filter((t) => t.completed).length} completed
-            </Text>
-          </View>
 
-          <TouchableOpacity
-            style={[
-              styles.themeToggle,
-              { backgroundColor: theme.primaryLight },
-            ]}
-            onPress={toggleTheme}
-          >
-            <Text style={styles.themeToggleText}>
-              {isDarkMode ? "☀️" : "🌙"}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Header
+          theme={theme}
+          tasks={tasks}
+          isDarkMode={isDarkMode}
+          onToggleTheme={toggleTheme}
+        />
 
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={[
-            styles.taskInputContainer,
-            { backgroundColor: theme.card, shadowColor: theme.shadow },
-          ]}
-        >
-          <View style={styles.inputRow}>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.inputBg,
-                  borderColor: theme.border,
-                  color: theme.text,
-                },
-              ]}
-              placeholder="Add a new task..."
-              placeholderTextColor={theme.textSecondary}
-              value={task}
-              onChangeText={setTask}
+        <NavBar
+          theme={theme}
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+        />
+
+        {activeTab === "tasks" ? (
+          <>
+            <TaskInput
+              theme={theme}
+              task={task}
+              onTaskChange={setTask}
+              notes={notes}
+              onNotesChange={setNotes}
+              deadline={deadline}
+              onShowDatePicker={showDatePickerModal}
+              onAddTask={addTask}
+              editingId={editingId}
+              formatDate={formatDate}
             />
 
-            <TouchableOpacity
-              style={[
-                styles.dateButton,
-                { backgroundColor: theme.inputBg, borderColor: theme.border },
-              ]}
-              onPress={showDatePickerModal}
-            >
-              <Text
-                style={[
-                  styles.dateButtonText,
-                  { color: deadline ? theme.deadline : theme.textSecondary },
-                ]}
-              >
-                {deadline ? formatDate(deadline) : "Set Deadline"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity
-            style={[styles.addButton, { backgroundColor: theme.primary }]}
-            onPress={addTask}
-          >
-            <Text style={styles.addButtonText}>
-              {editingId !== null ? "Update" : "Add"}
-            </Text>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-
-        {tasks.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <View
-              style={[
-                styles.emptyIconContainer,
-                { backgroundColor: `${theme.primary}20` },
-              ]}
-            >
-              <AppLogo />
-            </View>
-            <Text style={[styles.emptyText, { color: theme.text }]}>
-              No tasks yet
-            </Text>
-            <Text style={[styles.emptySubtext, { color: theme.textSecondary }]}>
-              Add a task to get started
-            </Text>
-          </View>
+            {tasks.length === 0 ? (
+              <EmptyState theme={theme} />
+            ) : (
+              <SectionList
+                sections={sections}
+                renderItem={renderItem}
+                renderSectionHeader={({ section: { title } }) => (
+                  <View
+                    style={[
+                      styles.sectionHeader,
+                      { backgroundColor: theme.background },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.sectionHeaderText, { color: theme.text }]}
+                    >
+                      {title}
+                    </Text>
+                  </View>
+                )}
+                keyExtractor={(item) => item.id}
+                style={styles.taskList}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                stickySectionHeadersEnabled={true}
+              />
+            )}
+          </>
         ) : (
-          <FlatList
-            data={tasks}
-            renderItem={renderItem}
-            keyExtractor={(item) => item.id}
-            style={styles.taskList}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
+          <DailyRoutine
+            theme={theme}
+            routines={routines}
+            onRoutinesChange={setRoutines}
           />
         )}
 
@@ -704,7 +553,7 @@ export default function App() {
             mode={pickerMode}
             is24Hour={true}
             display={Platform.OS === "ios" ? "spinner" : "default"}
-            onChange={onDateChange}
+            onChange={editingTimerId ? onTimerDateChange : onDateChange}
             minimumDate={new Date()}
           />
         )}
