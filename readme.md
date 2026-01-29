@@ -1,4 +1,4 @@
-# 📋 TodoApp
+# 📋 TaskTrack
 
 A feature-rich task management mobile application built with React Native and Expo that helps users organize their tasks, track daily routines, and stay productive with smart notifications and theme options.
 
@@ -71,13 +71,13 @@ _Coming soon_
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/avogadronuggies/TodoApp.git
+   git clone https://github.com/avogadronuggies/TaskTrack.git
    ```
 
 2. **Navigate to the project directory:**
 
    ```bash
-   cd TodoApp
+   cd TaskTrack
    ```
 
 3. **Install dependencies:**
@@ -135,7 +135,7 @@ Toggle between light and dark mode by pressing the **☀️/🌙** button in the
 ## 📁 Project Structure
 
 ```
-TodoApp/
+TaskTrack/
 ├── App.js                 # Main application component
 ├── index.js               # Entry point
 ├── styles.js              # All StyleSheet definitions
